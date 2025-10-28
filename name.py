@@ -1,67 +1,45 @@
 import requests
 import pandas as pd
-from bs4 import BeautifulSoup
 
-def fetch_ipos_nse():
-    """Fetch both currently open and upcoming IPOs from NSE."""
-    url = "https://www.nseindia.com/market-data/all-upcoming-issues-ipo"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-
-    session = requests.Session()
-    resp = session.get(url, headers=headers)
+def fetch_india_ipos(status="open", api_key="2b95c350ee4bbb2f6bc0d274089f61d07e05ae0864285830dc0987da27dc2e19"):
+    """
+    Fetch IPOs in India from IPOAlerts API.
+    
+    Args:
+        status (str): one of "open", "upcoming", "closed", "announced", "listed".
+        api_key (str): your API key if required.
+    Returns:
+        pandas.DataFrame: table of IPOs with fields from API.
+    """
+    base_url = "https://api.ipoalerts.in/ipos"
+    params = {"status": status}
+    headers = {}
+    if api_key:
+        headers["X-Api-Key"] = api_key  # adjust if API requires header
+    resp = requests.get(base_url, params=params, headers=headers)
     resp.raise_for_status()
-    html = resp.text
-
-    soup = BeautifulSoup(html, "html.parser")
-    tables = soup.find_all("table")
-
-    ipo_data = {"Open": pd.DataFrame(), "Upcoming": pd.DataFrame()}
-    titles = ["Currently Open IPOs", "Upcoming IPOs"]
-
-    for i, table in enumerate(tables[:2]):  # Usually two tables
-        rows = []
-        for tr in table.find_all("tr")[1:]:
-            td = tr.find_all("td")
-            if len(td) >= 5:
-                company = td[0].get_text(strip=True)
-                issue_type = td[1].get_text(strip=True)
-                open_date = td[2].get_text(strip=True)
-                close_date = td[3].get_text(strip=True)
-                price_band = td[4].get_text(strip=True)
-                rows.append({
-                    "Company": company,
-                    "Issue Type": issue_type,
-                    "Open Date": open_date,
-                    "Close Date": close_date,
-                    "Price Band": price_band
-                })
-        ipo_data["Open" if i == 0 else "Upcoming"] = pd.DataFrame(rows)
-
-    return ipo_data
+    data = resp.json()
+    # The JSON has a key "ipos" per docs :contentReference[oaicite:6]{index=6}
+    ipos = data.get("ipos", [])
+    df = pd.DataFrame(ipos)
+    return df
 
 if __name__ == "__main__":
-    ipos = fetch_ipos_nse()
+    # If you have a key:
+    API_KEY = None  # replace if provided
+    df_open = fetch_india_ipos(status="open", api_key=API_KEY)
+    
 
-    # --- Print Open IPOs ---
-    print("\n🟢 Currently Open IPOs on NSE:\n")
-    if ipos["Open"].empty:
-        print("No IPOs are currently open for subscription.\n")
-    else:
-        for i, row in ipos["Open"].iterrows():
-            print(f"{i+1}. {row['Company']}")
-            print(f"   Issue Type : {row['Issue Type']}")
-            print(f"   Open Date  : {row['Open Date']}")
-            print(f"   Close Date : {row['Close Date']}")
-            print(f"   Price Band : {row['Price Band']}\n")
+    '''
+    print(df_open.head())
+    # You might also want upcoming
+    df_upcoming = fetch_india_ipos(status="upcoming", api_key=API_KEY)
+    print("Upcoming IPOs in India:")
+    print(df_upcoming.head())
+    '''
+    print("Open IPOs in India:")
+    print(df_open["name"].to_list())
 
-    # --- Print Upcoming IPOs ---
-    print("\n📅 Upcoming IPOs on NSE:\n")
-    if ipos["Upcoming"].empty:
-        print("No upcoming IPOs are listed yet.\n")
-    else:
-        for i, row in ipos["Upcoming"].iterrows():
-            print(f"{i+1}. {row['Company']}")
-            print(f"   Issue Type : {row['Issue Type']}")
-            print(f"   Open Date  : {row['Open Date']}")
-            print(f"   Close Date : {row['Close Date']}")
-            print(f"   Price Band : {row['Price Band']}\n")
+
+
+
